@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visakha Dairy - Cash Voucher & Excel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        body, input, button, select, textarea, th, td, p, h1, h2, h3, span, div {
+            font-family: 'Times New Roman', Times, serif !important;
+        }
+
+        .material-input {
+            border: none;
+            border-bottom: 2px solid #e5e7eb;
+            border-radius: 0;
+            padding: 6px 0;
+            background-color: transparent;
+            transition: border-color 0.3s;
+            width: 100%;
+        }
+        .material-input:focus {
+            outline: none;
+            border-bottom: 2px solid #16a34a; 
+        }
+
+        @media print {
+            body { background: white; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; width: 100%; }
+            @page { margin: 10mm 15mm; size: letter portrait; }
+
+            .print-section {
+                height: 122mm !important;
+                max-height: 122mm !important;
+                display: flex;
+                flex-direction: column;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .page-break {
+                page-break-before: always !important;
+                break-before: page !important;
+            }
+
+            .word-style-text {
+                font-size: 16px !important;
+                line-height: 1.6 !important; 
+            }
+        }
+        .print-only { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-2" onload="initializeData()">
+
+    <!-- UI Main Container -->
+    <div class="no-print flex flex-col md:flex-row w-full max-w-6xl bg-white shadow-xl overflow-hidden rounded-lg my-2">
+        
+        <!-- సైడ్ బార్ -->
+        <div class="md:w-1/3 bg-blue-800 text-white p-6 flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-1">VISAKHA DAIRY</h2>
+                <p class="text-blue-200 text-xs mb-4">BMCC Voucher & Excel Management</p>
+                
+                <div class="space-y-2.5">
+                    <button type="button" onclick="openRoutesModal()" class="w-full bg-blue-900 text-white border border-blue-400 font-bold py-2 px-3 rounded shadow hover:bg-blue-700 transition flex justify-between items-center text-xs">
+                        <span>⚙️ Manage Routes (రూట్లు సెట్ చేయండి)</span>
+                    </button>
+                    <button type="button" onclick="openHistoryModal()" class="w-full bg-blue-700 text-white border border-blue-500 font-bold py-2 px-3 rounded shadow hover:bg-blue-900 transition flex justify-between items-center text-xs">
+                        <span>📂 View, Edit & Reprint</span>
+                        <span id="recordCount" class="bg-blue-600 text-white text-[10px] py-0.5 px-2 rounded-full">0</span>
+                    </button>
+                    <button type="button" onclick="downloadCurrentExcel()" class="w-full bg-white text-blue-900 font-bold py-2 px-3 rounded shadow hover:bg-gray-100 transition flex justify-between items-center text-xs">
+                        <span>📊 Download Excel</span>
+                    </button>
+                    <div class="flex gap-2 w-full pt-1">
+                        <button type="button" onclick="backupData()" class="w-1/2 bg-indigo-600 text-white font-bold py-1.5 rounded shadow hover:bg-indigo-700 transition text-xs">
+                            💾 Backup
+                        </button>
+                        <button type="button" onclick="document.getElementById('restoreFile').click()" class="w-1/2 bg-teal-600 text-white font-bold py-1.5 rounded shadow hover:bg-teal-700 transition text-xs">
+                            📂 Restore
+                        </button>
+                        <input type="file" id="restoreFile" accept=".json" class="hidden" onchange="restoreData(event)">
+                    </div>
+                </div>
+                <div class="mt-4 p-3 rounded-lg bg-blue-900 border border-blue-500 space-y-2">
+                    <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold">☁️ Google Drive Backup</p><span id="cloudBadge" class="text-[9px] rounded-full px-2 py-1 bg-yellow-300 text-blue-950 font-bold">SETUP REQUIRED</span></div>
+                    <label class="block text-[10px] text-blue-100">Apps Script Web App URL</label>
+                    <input id="cloudUrl" type="url" readonly aria-readonly="true" class="w-full p-2 rounded text-xs text-gray-900 bg-gray-200 cursor-not-allowed" value="https://script.google.com/macros/s/AKfycbwuKxAR9t6AywHQ9L-EhcFfG22tzQNbBYoL_DwcuYQdsC8suk9htN7fypxUc3EGQnz2/exec" title="ఈ URL లాక్ చేయబడింది; ఎడిట్ చేయలేరు.">
+                    <label class="block text-[10px] text-blue-100">Display name</label>
+                    <input id="cloudDisplayName" type="text" class="w-full p-2 rounded text-xs text-gray-900" value="VisakhaDairy">
+                    <div class="grid grid-cols-2 gap-2"><button type="button" onclick="saveCloudSettings()" class="bg-white text-blue-900 font-bold py-2 rounded text-xs">Save Connection</button><button type="button" onclick="testCloudConnection()" class="bg-blue-200 text-blue-950 font-bold py-2 rounded text-xs">Test Connection</button></div>
+                    <button type="button" onclick="syncSharedReports()" class="w-full bg-green-500 text-white font-bold py-2 rounded text-xs">☁️ Sync / Load Shared Reports</button>
+                    <p id="cloudStatus" class="text-[10px] text-blue-100 break-words">Save connection, then test it.</p>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-3 border-t border-blue-700 space-y-2">
+                <p class="text-[11px] text-blue-200 font-bold uppercase">Monthly Archiving</p>
+                <button type="button" onclick="archiveCurrentMonth()" class="w-full bg-yellow-500 text-blue-950 font-bold py-1.5 rounded shadow hover:bg-yellow-400 transition text-xs">
+                    📁 Save Month & Start Fresh
+                </button>
+                <button type="button" onclick="openArchiveModal()" class="w-full bg-blue-900 text-white border border-blue-500 font-bold py-1.5 rounded shadow hover:bg-blue-700 transition text-xs">
+                    🗄️ View Old Months (Archives)
+                </button>
+            </div>
+        </div>
+
+        <!-- మెయిన్ ఫారమ్ విభాగం -->
+        <div class="md:w-2/3 p-6 overflow-y-auto max-h-[92vh]">
+            <h1 class="text-xl font-bold text-gray-800 mb-4">Voucher Entry Form</h1>
+            
+            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <label class="text-xs font-bold text-blue-900 uppercase block mb-1">⚡ Select Route (ట్రాన్స్‌పోర్ట్ కోసం రూట్ ఎంచుకోండి లేదా జనరల్ ఖర్చులకు వదిలేయండి)</label>
+                <select id="selectedRouteCode" class="w-full p-2 bg-white border border-blue-300 rounded text-xs font-semibold text-gray-800" onchange="applyRoutePreset()">
+                    <option value="">-- జనరల్ ఎక్స్పెండిచర్ / రూట్ లేని వౌచర్ --</option>
+                </select>
+            </div>
+
+            <form id="voucherForm" class="space-y-4" onsubmit="event.preventDefault();">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-gray-500 uppercase">From Date</label>
+                        <input type="date" id="in_from_date" class="material-input text-xs text-gray-800" onchange="onDatesChange()">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-gray-500 uppercase">To Date</label>
+                        <input type="date" id="in_to_date" class="material-input text-xs text-gray-800" onchange="onDatesChange()">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-gray-500 uppercase">Voucher Date</label>
+                        <input type="date" id="in_voucher_date" class="material-input text-xs text-gray-800">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-gray-500 uppercase">Voucher No</label>
+                        <input type="text" id="in_voucher_no" class="material-input text-xs text-gray-800" placeholder="VOUCHER">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-gray-50 border border-gray-200 rounded text-xs">
+                    <div>
+                        <label id="unit_label" class="font-semibold text-gray-600 uppercase">Total Liters / Days</label>
+                        <input type="number" id="calc_units" class="material-input bg-white px-1 text-xs font-bold" placeholder="e.g. 15301.6" step="any" oninput="calculateAmount()">
+                    </div>
+                    <div>
+                        <label class="font-semibold text-gray-600 uppercase">Rate (Rs.)</label>
+                        <input type="number" id="calc_rate" class="material-input bg-white px-1 text-xs font-bold" placeholder="e.g. 0.80" step="any" oninput="calculateAmount()">
+                    </div>
+                    <div>
+                        <label class="font-semibold text-gray-600 uppercase">Total Amount (Rs.)</label>
+                        <input type="number" id="in_amount" class="material-input bg-white px-1 text-xs font-bold text-green-700" required step="any" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 uppercase">Amount In Words</label>
+                    <input type="text" id="in_words" class="material-input text-xs text-gray-800 font-semibold" required placeholder="Rupees in words...">
+                </div>
+
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 uppercase">Towards (Purpose / Description)</label>
+                    <textarea id="in_towards" rows="3" class="material-input text-xs text-gray-800 leading-relaxed" required placeholder="Description..."></textarea>
+                </div>
+
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 uppercase">BMCC Expenditure Register Page No.</label>
+                    <input type="text" id="in_page" class="material-input text-xs text-gray-800" required placeholder="Page number">
+                </div>
+
+                <div class="pt-2 flex flex-col gap-2">
+                    <button id="printBtn" type="button" onclick="saveAndPrint()" class="w-full bg-green-600 text-white font-bold py-2.5 rounded shadow hover:bg-green-700 transition flex justify-center items-center gap-2 text-xs">
+                        <span id="printBtnText">🖨️ Save & Print Voucher</span>
+                    </button>
+                    <button type="button" onclick="resetForm()" class="w-full bg-gray-100 text-blue-700 border border-blue-300 font-bold py-2 rounded shadow hover:bg-gray-200 transition flex justify-center items-center gap-2 text-xs">
+                        <span>➕ కొత్త వోచర్ (క్లియర్ చేయండి)</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- రూట్ల మోడల్ -->
+    <div id="routesModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden no-print flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h2 id="routeModalTitle" class="text-lg font-bold text-gray-800">Manage Routes</h2>
+                <button onclick="closeRoutesModal()" class="text-gray-500 hover:text-red-500 font-bold text-lg">&times;</button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-4">
+                <div class="p-3 bg-blue-50 border border-blue-200 rounded grid grid-cols-1 md:grid-cols-6 gap-2 text-xs items-end">
+                    <input type="hidden" id="edit_route_key" value="">
+                    <div>
+                        <label class="font-bold text-gray-600">Route No</label>
+                        <input type="text" id="r_no" class="p-1.5 bg-white border rounded w-full" placeholder="01">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-600">Route Name</label>
+                        <input type="text" id="r_name" class="p-1.5 bg-white border rounded w-full" placeholder="Khanamaladoddi">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-600">Vehicle No</label>
+                        <input type="text" id="r_vehicle" class="p-1.5 bg-white border rounded w-full" placeholder="AP39UR9903">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-600">Centers Count</label>
+                        <input type="number" id="r_centers" class="p-1.5 bg-white border rounded w-full" placeholder="02">
+                    </div>
+                    <div>
+                        <label class="font-bold text-gray-600">Rate Type & Rate</label>
+                        <div class="flex gap-1">
+                            <select id="r_ratetype" class="p-1.5 bg-white border rounded w-1/2">
+                                <option value="lit">Per Lit</option>
+                                <option value="day">Per Day</option>
+                            </select>
+                            <input type="number" id="r_rate" class="p-1.5 bg-white border rounded w-1/2" placeholder="0.80" step="any">
+                        </div>
+                    </div>
+                    <div>
+                        <button type="button" id="routeSubmitBtn" onclick="saveRoute()" class="w-full bg-blue-600 text-white font-bold py-1.5 rounded hover:bg-blue-700">Add Route</button>
+                    </div>
+                </div>
+
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600">
+                            <th class="p-2 border-b">Route No</th>
+                            <th class="p-2 border-b">Route Name</th>
+                            <th class="p-2 border-b">Vehicle No</th>
+                            <th class="p-2 border-b">Centers</th>
+                            <th class="p-2 border-b">Rate Type & Rate</th>
+                            <th class="p-2 border-b text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="routesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- హిస్టరీ మోడల్ -->
+    <div id="historyModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden no-print flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-lg font-bold text-gray-800">Saved Vouchers</h2>
+                <button onclick="closeHistoryModal()" class="text-gray-500 hover:text-red-500 font-bold text-lg">&times;</button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600">
+                            <th class="p-2 border-b">S.No</th>
+                            <th class="p-2 border-b w-24">Date</th>
+                            <th class="p-2 border-b">Amount</th>
+                            <th class="p-2 border-b">Towards</th>
+                            <th class="p-2 border-b text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody"></tbody>
+                </table>
+                <p id="noHistoryText" class="text-center text-gray-500 mt-4 hidden text-xs">No vouchers saved yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ఆర్కైవ్స్ మోడల్ -->
+    <div id="archiveModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden no-print flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-lg font-bold text-gray-800">Old Months Data (Archives)</h2>
+                <button onclick="closeArchiveModal()" class="text-gray-500 hover:text-red-500 font-bold text-lg">&times;</button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600">
+                            <th class="p-2 border-b">Month Name</th>
+                            <th class="p-2 border-b">Total Vouchers</th>
+                            <th class="p-2 border-b text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archiveTableBody"></tbody>
+                </table>
+                <p id="noArchiveText" class="text-center text-gray-500 mt-4 hidden text-xs">No older months saved yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ప్రింట్ లేఅవుట్ (1/2 Sheet) -->
+    <div class="print-only text-black w-full">
+        <!-- పేజీ 1: వోచర్ -->
+        <div class="print-section">
+            <div class="flex items-center gap-4 border-b-[2px] border-black pb-3 mb-2">
+                <div class="flex-shrink-0">
+                    <img src="data:image/png;base64,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" alt="Logo" style="width: 75px; height: 75px;">
+                </div>
+                <div class="text-center w-full pr-14">
+                    <h1 style="font-size: 19px; font-weight: bold; letter-spacing: 0.5px;">SRI VIJAYA VISAKHA MILK PRODUCERS COMPANY LIMITED</h1>
+                    <h2 style="font-size: 14px; font-weight: bold; margin-top: 3px;">(VISAKHA DAIRY), AKKIREDDYPALEM, VISAKHAPATNAM-12.</h2>
+                </div>
+            </div>
+
+            <div class="relative text-center mb-2">
+                <h3 style="font-size: 16px; font-weight: bold; text-decoration: underline; display: inline-block;">CASH VOUCHER</h3>
+                <p style="position: absolute; right: 0; top: 0; font-size: 14px; font-weight: bold;">Date:<span id="out_date" class="font-normal underline ml-1"></span></p>
+            </div>
+
+            <div class="flex-grow" style="font-size: 16px !important; line-height: 1.4 !important;">
+                <p style="text-align: justify; text-align-last: justify;">
+                    Received with thanks from Managing Director Visakha Dairy, Visakhapatnam. The Sum of 
+                </p>
+                <p style="text-align: justify; margin-top: 2px;">
+                    <span class="font-bold">Rs: <span id="out_amount" class="underline"></span></span> 
+                    (In words: <span class="font-bold underline" id="out_words"></span>).
+                </p>
+                <p style="text-align: justify; margin-top: 3px;">
+                    <b style="font-size: 16px;">Towards :</b> 
+                    <span id="out_towards" class="underline break-words"></span>
+                </p>
+            </div>
+
+            <div class="mt-4 text-black w-full" style="font-size: 13px;">
+                <div class="text-right mb-1 pr-10 font-bold tracking-wide">SIGNATURE</div>
+                <div class="mb-2 w-full font-bold text-gray-800 space-y-1.5">
+                    <div class="flex items-end w-full overflow-hidden">
+                        <span class="whitespace-nowrap mr-2">PASSED FOR/ PAY Rs</span>
+                        <span class="flex-grow overflow-hidden tracking-widest">....................................................................................................</span>
+                        <span class="whitespace-nowrap mx-2">Rupees</span>
+                        <span class="flex-grow overflow-hidden tracking-widest">..................................................</span>
+                    </div>
+                    <div class="flex items-end w-full overflow-hidden">
+                        <span class="flex-grow overflow-hidden tracking-widest">................................................................................................................................................................................................................................</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center w-full pt-6 pb-1 pr-4 font-bold text-xs">
+                    <div class="text-left w-1/3">ACCOUNTANT</div>
+                    <div class="text-center w-1/3">MANAGER(F&A)</div>
+                    <div class="text-right w-1/3 whitespace-nowrap">MANAGING DIRECTOR</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- పేజీ 2: సర్టిఫికెట్ -->
+        <div class="print-section page-break pt-6">
+            <div class="text-center mb-4">
+                <h3 style="font-size: 16px; font-weight: bold; text-decoration: underline; display: inline-block;">CERTIFICATE</h3>
+            </div>
+            <div class="word-style-text">
+                <p class="text-justify leading-loose">
+                    This is to certified that the Amount has been Incurred Bonafide purpose of Visakha Dairy For 
+                    <span class="font-bold">Rs: <span id="out_amount_cert"></span></span> 
+                    (In words: <span class="font-bold" id="out_words_cert"></span>) 
+                    <b style="font-size: 15px;">Towards :</b> <span id="out_towards_cert" class="break-words"></span>, and this bill is not claimed earlier.
+                    This bill is entered in the BMCC Expenditure Register Page no: <b class="underline"><span id="out_page"></span></b>.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript లాజిక్ -->
+    <script>
+        let currentEditIndex = -1;
+
+        function initializeData() {
+            updateCounter();
+            loadRoutesDropdown();
+            const savedCloudName = localStorage.getItem('visakhaCloudName');
+            document.getElementById('cloudUrl').value = FIXED_CLOUD_ENDPOINT;
+            localStorage.setItem('visakhaCloudUrl', FIXED_CLOUD_ENDPOINT);
+            if(savedCloudName) document.getElementById('cloudDisplayName').value = savedCloudName;
+            setCloudStatus('Locked Apps Script URL. Connecting to shared cloud…', 'busy');
+            setTimeout(() => { autoCloudMerge(); }, 700);
+            setInterval(() => { autoCloudMerge(); }, 15000);
+            
+            let today = new Date().toISOString().split('T')[0];
+            if(!document.getElementById('in_voucher_date').value) {
+                document.getElementById('in_voucher_date').value = today;
+            }
+        }
+
+        function openRoutesModal() {
+            resetRouteForm();
+            renderRoutesTable();
+            document.getElementById('routesModal').classList.remove('hidden');
+        }
+        function closeRoutesModal() {
+            document.getElementById('routesModal').classList.add('hidden');
+            loadRoutesDropdown();
+        }
+
+        function resetRouteForm() {
+            document.getElementById('edit_route_key').value = '';
+            document.getElementById('r_no').value = '';
+            document.getElementById('r_name').value = '';
+            document.getElementById('r_vehicle').value = '';
+            document.getElementById('r_centers').value = '';
+            document.getElementById('r_rate').value = '';
+            document.getElementById('routeSubmitBtn').innerText = "Add Route";
+            document.getElementById('routeModalTitle').innerText = "Manage Routes";
+        }
+
+        function saveRoute() {
+            let editKey = document.getElementById('edit_route_key').value;
+            let rNo = document.getElementById('r_no').value.trim();
+            let rName = document.getElementById('r_name').value.trim();
+            let vehicle = document.getElementById('r_vehicle').value.trim();
+            let centers = document.getElementById('r_centers').value.trim();
+            let rateType = document.getElementById('r_ratetype').value;
+            let rate = document.getElementById('r_rate').value.trim();
+
+            if(!rNo || !vehicle || !rate) {
+                alert("దయచేసి రూట్ నంబర్, వెహికల్ నంబర్ మరియు రేట్ పూర్తిగా ఎంటర్ చేయండి!");
+                return;
+            }
+
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            if(editKey !== "" && editKey !== rNo) {
+                delete routes[editKey];
+            }
+
+            routes[rNo] = { name: rName || ('Route ' + rNo), vehicle, centers: centers || '02', rateType, rate };
+            localStorage.setItem('milkRoutes', JSON.stringify(routes));
+            queueCloudBackup();
+
+            resetRouteForm();
+            renderRoutesTable();
+        }
+
+        function editRoute(rNo) {
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            let r = routes[rNo];
+            if(!r) return;
+
+            document.getElementById('edit_route_key').value = rNo;
+            document.getElementById('r_no').value = rNo;
+            document.getElementById('r_name').value = r.name || '';
+            document.getElementById('r_vehicle').value = r.vehicle;
+            document.getElementById('r_centers').value = r.centers;
+            document.getElementById('r_ratetype').value = r.rateType;
+            document.getElementById('r_rate').value = r.rate;
+
+            document.getElementById('routeSubmitBtn').innerText = "Update Route";
+            document.getElementById('routeModalTitle').innerText = "Edit Route";
+        }
+
+        function renderRoutesTable() {
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            let tbody = document.getElementById('routesTableBody');
+            tbody.innerHTML = "";
+
+            if(Object.keys(routes).length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-gray-500">No routes added yet.</td></tr>`;
+                return;
+            }
+
+            for(let rNo in routes) {
+                let r = routes[rNo];
+                let tr = document.createElement('tr');
+                tr.className = "border-b hover:bg-gray-50";
+                tr.innerHTML = `
+                    <td class="p-2 font-bold">${rNo}</td>
+                    <td class="p-2">${r.name || '-'}</td>
+                    <td class="p-2">${r.vehicle}</td>
+                    <td class="p-2">${r.centers} Centers</td>
+                    <td class="p-2">${r.rate} Rs / ${r.rateType === 'lit' ? 'Liter' : 'Day'}</td>
+                    <td class="p-2 text-center space-x-1">
+                        <button onclick="editRoute('${rNo}')" class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-bold text-[10px]">Edit</button>
+                        <button onclick="deleteRoute('${rNo}')" class="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px]">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function deleteRoute(rNo) {
+            if(confirm(`Route No ${rNo} డిలీట్ చేయాలా?`)) {
+                let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+                delete routes[rNo];
+                localStorage.setItem('milkRoutes', JSON.stringify(routes));
+                queueCloudBackup();
+                renderRoutesTable();
+            }
+        }
+
+        function loadRoutesDropdown() {
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            let select = document.getElementById('selectedRouteCode');
+            select.innerHTML = '<option value="">-- జనరల్ ఎక్స్పెండిచర్ / రూట్ లేని వౌచర్ --</option>';
+            
+            for(let rNo in routes) {
+                let r = routes[rNo];
+                let opt = document.createElement('option');
+                opt.value = rNo;
+                opt.innerText = `Route No: ${rNo} - ${r.name || ''} (Vehicle: ${r.vehicle}, Rate: ${r.rate}/${r.rateType})`;
+                select.appendChild(opt);
+            }
+        }
+
+        function applyRoutePreset() {
+            let rNo = document.getElementById('selectedRouteCode').value;
+            if(!rNo) {
+                document.getElementById('calc_rate').value = '';
+                document.getElementById('unit_label').innerText = 'Total Liters / Days';
+                return;
+            }
+
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            let r = routes[rNo];
+            if(!r) return;
+
+            document.getElementById('calc_rate').value = r.rate;
+            let unitLabelText = r.rateType === 'lit' ? 'Total Liters' : 'Total Days';
+            document.getElementById('unit_label').innerText = unitLabelText;
+            
+            if(r.rateType === 'day') {
+                calculateDaysFromDates();
+            }
+            
+            autoGenerateDescription();
+        }
+
+        function calculateDaysFromDates() {
+            let rNo = document.getElementById('selectedRouteCode').value;
+            if(!rNo) return;
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            let r = routes[rNo];
+            if(r && r.rateType === 'day') {
+                let fDate = document.getElementById('in_from_date').value;
+                let tDate = document.getElementById('in_to_date').value;
+                if(fDate && tDate) {
+                    let d1 = new Date(fDate);
+                    let d2 = new Date(tDate);
+                    let diffTime = d2 - d1;
+                    if(diffTime >= 0) {
+                        let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        document.getElementById('calc_units').value = diffDays;
+                        calculateAmount();
+                    }
+                }
+            }
+        }
+
+        function onDatesChange() {
+            calculateDaysFromDates();
+            autoGenerateDescription();
+        }
+
+        function formatDateToDDMMYYYY(dateStr) {
+            if(!dateStr) return "DD/MM/YYYY";
+            let parts = dateStr.split('-');
+            if(parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            return dateStr;
+        }
+
+        function autoGenerateDescription() {
+            let rNo = document.getElementById('selectedRouteCode').value;
+            let fromDate = document.getElementById('in_from_date').value;
+            let toDate = document.getElementById('in_to_date').value;
+            let units = document.getElementById('calc_units').value || '0';
+            let rate = document.getElementById('calc_rate').value || '0';
+
+            if(!rNo) return;
+
+            let routes = JSON.parse(localStorage.getItem('milkRoutes')) || {};
+            let r = routes[rNo];
+            if(!r) return;
+
+            let fDateFormatted = formatDateToDDMMYYYY(fromDate);
+            let tDateFormatted = formatDateToDDMMYYYY(toDate);
+
+            let unitName = r.rateType === 'lit' ? 'lit' : 'days';
+            let routeNameStr = r.name ? ` (${r.name})` : '';
+            
+            let desc = `Milk auto transportation charges from ${r.centers} milk collection centers to Kanumaladoddi bcc from ${fDateFormatted} to ${tDateFormatted} for route no-${rNo}${routeNameStr} by vehicle no ${r.vehicle} Rate @rs-${rate} ps per ${r.rateType === 'lit' ? 'lit' : 'day'}.total ${unitName}-${units}*rs${rate}=rs-${document.getElementById('in_amount').value || '0'}/-`;
+
+            document.getElementById('in_towards').value = desc;
+            calculateAmount();
+        }
+
+        function calculateAmount() {
+            let units = parseFloat(document.getElementById('calc_units').value) || 0;
+            let rate = parseFloat(document.getElementById('calc_rate').value) || 0;
+            if(units > 0 && rate > 0) {
+                let total = (units * rate).toFixed(2);
+                document.getElementById('in_amount').value = total;
+                document.getElementById('in_amount').dispatchEvent(new Event('input'));
+            }
+            autoGenerateDescription();
+        }
+
+        function numberToWords(numVal) {
+            let num = parseFloat(numVal);
+            if (num === 0 || isNaN(num)) return "";
+            const words = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+            const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+            function convertWhole(n) {
+                if(n === 0) return "";
+                let str = '';
+                let amount = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+                if (!amount) return '';
+                str += (amount[1] != 0) ? (words[Number(amount[1])] || tens[amount[1][0]] + ' ' + words[amount[1][1]]) + ' Crore ' : '';
+                str += (amount[2] != 0) ? (words[Number(amount[2])] || tens[amount[2][0]] + ' ' + words[amount[2][1]]) + ' Lakh ' : '';
+                str += (amount[3] != 0) ? (words[Number(amount[3])] || tens[amount[3][0]] + ' ' + words[amount[3][1]]) + ' Thousand ' : '';
+                str += (amount[4] != 0) ? (words[Number(amount[4])] || tens[amount[4][0]] + ' ' + words[amount[4][1]]) + ' Hundred ' : '';
+                str += (amount[5] != 0) ? ((str != '') ? 'and ' : '') + (words[Number(amount[5])] || tens[amount[5][0]] + ' ' + words[amount[5][1]]) : '';
+                return str.trim();
+            }
+
+            let numStr = num.toFixed(2);
+            let parts = numStr.split('.');
+            let rupees = parseInt(parts[0], 10);
+            let paise = parseInt(parts[1], 10);
+
+            let rupeeText = convertWhole(rupees);
+            let paiseText = convertWhole(paise);
+
+            let result = "";
+            if (rupees > 0) result += rupeeText + " Rupees";
+            if (rupees > 0 && paise > 0) result += " and ";
+            if (paise > 0) result += paiseText + " Paise";
+
+            return result ? result + " Only." : "";
+        }
+
+        document.getElementById('in_amount').addEventListener('input', function(e) {
+            const val = e.target.value;
+            const wordsInput = document.getElementById('in_words');
+            if(!val || val <= 0) { wordsInput.value = ""; return; }
+            wordsInput.value = numberToWords(val);
+        });
+
+        function updateCounter() {
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+            document.getElementById('recordCount').innerText = historyData.length + " Saved";
+        }
+
+        function saveAndPrint() {
+            const form = document.getElementById('voucherForm');
+            if(!form.checkValidity()) { form.reportValidity(); return; }
+
+            let vDate = document.getElementById('in_voucher_date').value;
+            let displayDate = formatDateToDDMMYYYY(vDate);
+
+            const amount = document.getElementById('in_amount').value;
+            const words = document.getElementById('in_words').value;
+            const towards = document.getElementById('in_towards').value;
+            const page = document.getElementById('in_page').value;
+            let voucherNo = document.getElementById('in_voucher_no').value || "VOUCHER";
+
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+
+            if (currentEditIndex > -1) {
+                historyData[currentEditIndex] = { date: displayDate, voucher: voucherNo, description: towards, amount: Number(amount), words, page };
+            } else {
+                historyData.push({ date: displayDate, voucher: voucherNo, description: towards, amount: Number(amount), words, page });
+                currentEditIndex = historyData.length - 1;
+            }
+
+            localStorage.setItem('voucherHistory', JSON.stringify(historyData));
+            // If a voucher with this signature is intentionally saved again, clear its old deletion marker.
+            const savedVoucher = historyData[currentEditIndex];
+            const savedKey = voucherKey(savedVoucher);
+            const deletedKeys = new Set(JSON.parse(localStorage.getItem('deletedVoucherKeys')) || []);
+            deletedKeys.delete(savedKey);
+            localStorage.setItem('deletedVoucherKeys', JSON.stringify([...deletedKeys]));
+            queueCloudBackup();
+            updateCounter();
+            setupPrintData(displayDate, amount, words, towards, page);
+            setTimeout(() => { window.print(); }, 300);
+        }
+
+        function setupPrintData(date, amount, words, towards, page) {
+            document.getElementById('out_date').innerText = date;
+            document.getElementById('out_amount').innerText = Number(amount).toFixed(2);
+            document.getElementById('out_amount_cert').innerText = Number(amount).toFixed(2);
+            document.getElementById('out_words').innerText = words;
+            document.getElementById('out_words_cert').innerText = words;
+            document.getElementById('out_towards').innerText = towards;
+            document.getElementById('out_towards_cert').innerText = towards;
+            document.getElementById('out_page').innerText = page;
+        }
+
+        function resetForm() {
+            document.getElementById('in_amount').value = '';
+            document.getElementById('in_words').value = '';
+            document.getElementById('in_towards').value = '';
+            document.getElementById('calc_units').value = '';
+            document.getElementById('calc_rate').value = '';
+            document.getElementById('in_page').value = '';
+            document.getElementById('in_voucher_no').value = '';
+            document.getElementById('selectedRouteCode').value = '';
+            currentEditIndex = -1;
+            document.getElementById('printBtnText').innerText = "🖨️ Save & Print Voucher";
+        }
+
+        function openHistoryModal() {
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+            let tbody = document.getElementById('historyTableBody');
+            let noHistory = document.getElementById('noHistoryText');
+            tbody.innerHTML = "";
+
+            if(historyData.length === 0) {
+                noHistory.classList.remove('hidden');
+            } else {
+                noHistory.classList.add('hidden');
+                historyData.map((row, index) => ({ row, index })).reverse().forEach(item => {
+                    let tr = document.createElement('tr');
+                    tr.className = "border-b hover:bg-gray-50";
+                    tr.innerHTML = `
+                        <td class="p-2">${10001 + item.index}</td>
+                        <td class="p-2">${item.row.date}</td>
+                        <td class="p-2 font-bold">Rs. ${Number(item.row.amount).toFixed(2)}</td>
+                        <td class="p-2 truncate max-w-xs" title="${item.row.description}">${item.row.description}</td>
+                        <td class="p-2 text-center space-x-1">
+                            <button onclick="editVoucher(${item.index})" class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-bold text-[10px]">Edit</button>
+                            <button onclick="reprintVoucher(${item.index})" class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold text-[10px]">Print</button>
+                            <button onclick="deleteVoucher(${item.index})" class="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px]">Del</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            document.getElementById('historyModal').classList.remove('hidden');
+        }
+        function closeHistoryModal() { document.getElementById('historyModal').classList.add('hidden'); }
+
+        function editVoucher(index) {
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+            let data = historyData[index];
+            if(!data) return;
+
+            let parts = data.date.split('/');
+            if(parts.length === 3) document.getElementById('in_voucher_date').value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            document.getElementById('in_amount').value = data.amount;
+            document.getElementById('in_words').value = data.words;
+            document.getElementById('in_towards').value = data.description;
+            document.getElementById('in_page').value = data.page;
+            document.getElementById('in_voucher_no').value = data.voucher;
+
+            currentEditIndex = index;
+            document.getElementById('printBtnText').innerText = "🖨️ Update & Print Voucher";
+            closeHistoryModal();
+        }
+
+        function reprintVoucher(index) {
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+            let data = historyData[index];
+            if(!data) return;
+            setupPrintData(data.date, data.amount, data.words, data.description, data.page);
+            closeHistoryModal();
+            setTimeout(() => { window.print(); }, 300);
+        }
+
+        function deleteVoucher(index) {
+            if(confirm("ఈ వౌచర్ డిలీట్ చేయాలా?")) {
+                let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+                const removedVoucher = historyData[index];
+                if (removedVoucher) {
+                    const deletedKeys = new Set(JSON.parse(localStorage.getItem('deletedVoucherKeys')) || []);
+                    deletedKeys.add(voucherKey(removedVoucher));
+                    localStorage.setItem('deletedVoucherKeys', JSON.stringify([...deletedKeys]));
+                }
+                historyData.splice(index, 1);
+                localStorage.setItem('voucherHistory', JSON.stringify(historyData));
+                queueCloudBackup();
+                updateCounter();
+                openHistoryModal();
+            }
+        }
+
+        function generateExcel(dataArray, fileName) {
+            let excelRows = [["EXPENDITURE INCURRED FOR KANUMULADODDI BCC"], ["S.No", "DATE", "VOUCHER", "DESCRIPTION", "AMOUNT"]];
+            let totalAmount = 0;
+            dataArray.forEach((row, index) => {
+                excelRows.push([10001 + index, row.date, row.voucher, row.description, row.amount]);
+                totalAmount += row.amount;
+            });
+            excelRows.push(["", "", "", "Total Amount", totalAmount]);
+
+            const ws = XLSX.utils.aoa_to_sheet(excelRows);
+            ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 15 }, { wch: 50 }, { wch: 12 }];
+            ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Expenditure");
+            XLSX.writeFile(wb, fileName + ".xlsx");
+        }
+
+        function downloadCurrentExcel() {
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+            if(historyData.length === 0) { alert("సేవ్ చేసిన డేటా లేదు!"); return; }
+            generateExcel(historyData, "Kanumuladoddi_BCC_Current");
+        }
+
+        function archiveCurrentMonth() {
+            let historyData = JSON.parse(localStorage.getItem('voucherHistory')) || [];
+            if(historyData.length === 0) { alert("డేటా లేదు!"); return; }
+            let monthName = prompt("ఈ నెలకు పేరు ఇవ్వండి (ఉదా: September 2026):", "");
+            if(monthName && monthName.trim() !== "") {
+                let archives = JSON.parse(localStorage.getItem('voucherArchives')) || {};
+                archives[monthName] = historyData;
+                localStorage.setItem('voucherArchives', JSON.stringify(archives));
+                localStorage.removeItem('voucherHistory');
+                queueCloudBackup();
+                updateCounter();
+                resetForm();
+                alert(`'${monthName}' డేటా విజయవంతంగా సేవ్ చేయబడింది.`);
+            }
+        }
+
+        function openArchiveModal() {
+            let archives = JSON.parse(localStorage.getItem('voucherArchives')) || {};
+            let tbody = document.getElementById('archiveTableBody');
+            let noArchive = document.getElementById('noArchiveText');
+            tbody.innerHTML = "";
+
+            if(Object.keys(archives).length === 0) {
+                noArchive.classList.remove('hidden');
+            } else {
+                noArchive.classList.add('hidden');
+                for(let month in archives) {
+                    let tr = document.createElement('tr');
+                    tr.className = "border-b hover:bg-gray-50";
+                    tr.innerHTML = `
+                        <td class="p-2 font-bold">${month}</td>
+                        <td class="p-2">${archives[month].length} Vouchers</td>
+                        <td class="p-2 text-center space-x-1">
+                            <button onclick="downloadArchiveExcel('${month}')" class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-bold text-[10px]">Excel</button>
+                            <button onclick="deleteArchive('${month}')" class="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold text-[10px]">Del</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            }
+            document.getElementById('archiveModal').classList.remove('hidden');
+        }
+        function closeArchiveModal() { document.getElementById('archiveModal').classList.add('hidden'); }
+
+        function downloadArchiveExcel(monthName) {
+            let archives = JSON.parse(localStorage.getItem('voucherArchives')) || {};
+            if(archives[monthName]) generateExcel(archives[monthName], "Kanumuladoddi_BCC_" + monthName);
+        }
+
+        function deleteArchive(monthName) {
+            if(confirm(`'${monthName}' ఆర్కైవ్ డిలీట్ చేయాలా?`)) {
+                let archives = JSON.parse(localStorage.getItem('voucherArchives')) || {};
+                delete archives[monthName];
+                localStorage.setItem('voucherArchives', JSON.stringify(archives));
+                queueCloudBackup();
+                openArchiveModal();
+            }
+        }
+
+        let cloudSyncInProgress = false;
+        let cloudSyncTimer = null;
+        const FIXED_CLOUD_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwuKxAR9t6AywHQ9L-EhcFfG22tzQNbBYoL_DwcuYQdsC8suk9htN7fypxUc3EGQnz2/exec';
+        function cloudEndpoint() { return FIXED_CLOUD_ENDPOINT; }
+        function setCloudStatus(message, state='info') {
+            const status = document.getElementById('cloudStatus'), badge = document.getElementById('cloudBadge');
+            if(status) status.textContent = message;
+            if(badge) {
+                const styles = {ok:['CONNECTED','bg-green-300 text-green-950'],error:['CHECK CONNECTION','bg-red-300 text-red-950'],ready:['READY TO TEST','bg-blue-200 text-blue-950'],busy:['SYNCING…','bg-yellow-300 text-blue-950'],info:['SETUP REQUIRED','bg-yellow-300 text-blue-950']};
+                const item = styles[state] || styles.info;
+                badge.textContent = item[0]; badge.className = 'text-[9px] rounded-full px-2 py-1 font-bold ' + item[1];
+            }
+        }
+        function saveCloudSettings() {
+            const url = FIXED_CLOUD_ENDPOINT;
+            document.getElementById('cloudUrl').value = FIXED_CLOUD_ENDPOINT;
+            if(!url || !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) { alert('సరైన Google Apps Script Web App /exec URL ఇవ్వండి.'); return; }
+            localStorage.setItem('visakhaCloudUrl',url);
+            localStorage.setItem('visakhaCloudName',(document.getElementById('cloudDisplayName').value||'VisakhaDairy').trim());
+            setCloudStatus('Connection settings saved in this browser. Test the connection now.','ready');
+        }
+        function collectBackupData() {
+            return {app:'Visakha Dairy Cash Voucher',displayName:(document.getElementById('cloudDisplayName').value||'VisakhaDairy').trim(),updatedAt:new Date().toISOString(),
+                history:JSON.parse(localStorage.getItem('voucherHistory'))||[],deletedVoucherKeys:JSON.parse(localStorage.getItem('deletedVoucherKeys'))||[],archives:JSON.parse(localStorage.getItem('voucherArchives'))||{},routes:JSON.parse(localStorage.getItem('milkRoutes'))||{}};
+        }
+        async function testCloudConnection() {
+            const url=cloudEndpoint(); if(!url){setCloudStatus('Enter the Apps Script URL first.','error');return;}
+            setCloudStatus('Testing connection…','busy');
+            try {
+                const r=await fetch(url+(url.includes('?')?'&':'?')+'action=ping',{method:'GET',redirect:'follow'}), d=await r.json();
+                if(!r.ok||!d.ok) throw new Error(d.error||'Unexpected response');
+                localStorage.setItem('visakhaCloudUrl',url); localStorage.setItem('visakhaCloudName',(document.getElementById('cloudDisplayName').value||'VisakhaDairy').trim());
+                setCloudStatus('Connected to shared Drive backend. '+(d.message||''),'ok');
+            } catch(e){setCloudStatus('Connection failed: '+e.message+'. Verify Apps Script deployment/access settings.','error');}
+        }
+        async function syncSharedReports() {
+            const url=cloudEndpoint(); if(!url){alert('ముందుగా Apps Script URL ఇవ్వండి.');return;} if(cloudSyncInProgress)return;
+            cloudSyncInProgress=true; setCloudStatus('Syncing shared reports…','busy');
+            try {
+                const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'sync',data:collectBackupData()}),redirect:'follow'}), d=await r.json();
+                if(!r.ok||!d.ok)throw new Error(d.error||'Sync was not accepted');
+                if(d.data){if(Array.isArray(d.data.history))localStorage.setItem('voucherHistory',JSON.stringify(d.data.history));if(Array.isArray(d.data.deletedVoucherKeys))localStorage.setItem('deletedVoucherKeys',JSON.stringify(d.data.deletedVoucherKeys));if(d.data.archives&&typeof d.data.archives==='object')localStorage.setItem('voucherArchives',JSON.stringify(d.data.archives));if(d.data.routes&&typeof d.data.routes==='object')localStorage.setItem('milkRoutes',JSON.stringify(d.data.routes));updateCounter();loadRoutesDropdown();setCloudStatus('Shared reports loaded from Drive and updated on this browser.','ok');}
+                else setCloudStatus('Backup saved to shared Drive successfully.','ok');
+                localStorage.setItem('visakhaCloudUrl',url);localStorage.setItem('visakhaCloudName',(document.getElementById('cloudDisplayName').value||'VisakhaDairy').trim());
+            }catch(e){setCloudStatus('Sync failed: '+e.message+'. Check Apps Script backend/deployment.','error');alert('Drive sync failed: '+e.message+'\\nApps Script code/deployment settings చెక్ చేయండి.');}
+            finally{cloudSyncInProgress=false;}
+        }
+
+        function voucherKey(v) {
+            if (v && v.id) return 'id:' + v.id;
+            return [v?.date||'', v?.voucher||'', Number(v?.amount||0).toFixed(2), v?.description||'', v?.page||''].join('|');
+        }
+        function mergeVoucherLists(localList, cloudList) {
+            const map = new Map();
+            [...(Array.isArray(cloudList)?cloudList:[]), ...(Array.isArray(localList)?localList:[])].forEach(v => {
+                if (!v) return;
+                map.set(voucherKey(v), v);
+            });
+            return [...map.values()];
+        }
+        async function autoCloudMerge() {
+            if (cloudSyncInProgress) return;
+            const url = FIXED_CLOUD_ENDPOINT;
+            cloudSyncInProgress = true;
+            try {
+                const response = await fetch(url + (url.includes('?')?'&':'?') + 'action=load&ts=' + Date.now(), {method:'GET', cache:'no-store', redirect:'follow'});
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.error || 'Cloud load failed');
+                const cloud = result.data || {};
+                const local = collectBackupData();
+                const deletedKeys = new Set([...(Array.isArray(cloud.deletedVoucherKeys)?cloud.deletedVoucherKeys:[]), ...(Array.isArray(local.deletedVoucherKeys)?local.deletedVoucherKeys:[])]);
+                const mergedHistory = mergeVoucherLists(local.history, cloud.history).filter(v => !deletedKeys.has(voucherKey(v)));
+                const merged = {
+                    app: 'Visakha Dairy Cash Voucher', displayName: local.displayName || cloud.displayName || 'VisakhaDairy',
+                    updatedAt: new Date().toISOString(),
+                    history: mergedHistory, deletedVoucherKeys: [...deletedKeys],
+                    archives: {...(cloud.archives||{}), ...(local.archives||{})},
+                    routes: {...(cloud.routes||{}), ...(local.routes||{})}
+                };
+                localStorage.setItem('voucherHistory', JSON.stringify(merged.history));
+                localStorage.setItem('voucherArchives', JSON.stringify(merged.archives));
+                localStorage.setItem('milkRoutes', JSON.stringify(merged.routes));
+                localStorage.setItem('visakhaCloudUrl', FIXED_CLOUD_ENDPOINT);
+                updateCounter(); loadRoutesDropdown();
+                const saveResponse = await fetch(url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({action:'save', data:merged}), redirect:'follow'});
+                const saved = await saveResponse.json();
+                if (!saveResponse.ok || !saved.ok) throw new Error(saved.error || 'Cloud save failed');
+                setCloudStatus('Cloud synced automatically. Latest shared vouchers are loaded.', 'ok');
+            } catch (error) {
+                setCloudStatus('Auto-sync not confirmed: ' + error.message + '. Check connection.', 'error');
+            } finally { cloudSyncInProgress = false; }
+        }
+
+        function queueCloudBackup() {
+            localStorage.setItem('visakhaCloudUrl', FIXED_CLOUD_ENDPOINT); clearTimeout(cloudSyncTimer);
+            cloudSyncTimer=setTimeout(async()=>{const url=localStorage.getItem('visakhaCloudUrl');if(!url||cloudSyncInProgress)return;
+                try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'save',data:collectBackupData()}),redirect:'follow'}),d=await r.json();if(r.ok&&d.ok)setCloudStatus('Automatic Drive backup completed.','ok');else setCloudStatus('Automatic backup failed. Use Sync / Load Shared Reports.','error');}
+                catch(e){setCloudStatus('Local data saved; Drive auto-backup failed. Test connection.','error');}
+            },1200);
+        }
+
+        function backupData() {
+            let backup = { history: JSON.parse(localStorage.getItem('voucherHistory')) || [], archives: JSON.parse(localStorage.getItem('voucherArchives')) || [], routes: JSON.parse(localStorage.getItem('milkRoutes')) || {} };
+            let blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = `Vouchers_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function restoreData(event) {
+            let file = event.target.files[0];
+            if(!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let data = JSON.parse(e.target.result);
+                    if(data.history) localStorage.setItem('voucherHistory', JSON.stringify(data.history));
+                    if(data.archives) localStorage.setItem('voucherArchives', JSON.stringify(data.archives));
+                    if(data.routes) localStorage.setItem('milkRoutes', JSON.stringify(data.routes));
+                    updateCounter();
+                    loadRoutesDropdown();
+                    alert("డేటా విజయవంతంగా రీస్టోర్ చేయబడింది!");
+                } catch(err) { alert("ఫైల్ లోపం!"); }
+                event.target.value = "";
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
